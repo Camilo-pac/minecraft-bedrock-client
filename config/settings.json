@@ -1,4 +1,80 @@
+# Minecraft Bedrock Local Resource Pack Manager
+
+A legitimate local-only project for managing resource packs in a Minecraft Bedrock workflow. This project focuses on client-side visual customization only, without affecting other players or server state.
+
+## Purpose
+
+This tool is meant to help you:
+- organize resource packs on your device
+- enable or disable them locally
+- keep a clean, client-only workflow for customization
+- manage Bedrock visual packs without altering others' experience
+
+## Important note
+
+This project is intentionally local-only. It is not meant to manipulate anyone else's client, server, or gameplay state. It changes the selected resource pack set for your own game installation.
+
+## Features
+
+- Local pack discovery from `./resourcepacks`
+- Pack metadata parsing from `pack.mcmeta`
+- Toggle packs on/off in a client-side config
+- Simple console-based UI for enabling/disabling packs
+- Explicit “client-only” behavior designed to keep all effects local
+
+## Project structure
+
+```text
+minecraft-bedrock-client/
+├── README.md
+├── package.json
+├── tsconfig.json
+├── .gitignore
+├── config/
+│   └── settings.json
+├── resourcepacks/
+│   ├── example-pack/
+│   │   └── pack.mcmeta
+│   └── example-pack-2/
+│       └── pack.mcmeta
+└── src/
+    └── client/
+        ├── main.ts
+        ├── resourcePack.ts
+        └── ui/
+            └── packManager.ts
+```
+
+## Quick start
+
+```bash
+npm install
+npm run build
+npm run dev
+```
+
+## Local workflow
+
+1. Add a new package folder under `resourcepacks/`
+2. Add a valid `pack.mcmeta` file
+3. Run the tool
+4. Enable or disable the pack in the local settings
+5. The selected pack set updates only for your client
+
+## Example pack metadata
+
+```json
 {
-  "activePacks": ["example-pack"],
-  "lastUpdated": "2026-10-03T00:00:00.000Z"
+  "pack": {
+    "pack_format": 12,
+    "description": "Example local-only texture pack"
+  }
 }
+```
+
+## Notes
+
+- This is not a multiplayer exploit
+- It does not grant unfair gameplay advantages
+- It does not affect anyone else in the world or on the server
+- The pack set is stored locally and only applied to the player’s device
