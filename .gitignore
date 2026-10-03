@@ -1,0 +1,9 @@
+# Ignore generated files
+node_modules/
+dist/
+*.log
+
+# Local pack folders
+resourcepacks/*/
+!resourcepacks/example-pack/
+!resourcepacks/example-pack-2/

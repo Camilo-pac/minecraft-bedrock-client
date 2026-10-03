@@ -1,0 +1,17 @@
+{
+  "name": "minecraft-bedrock-client",
+  "version": "1.0.0",
+  "description": "Local-only Minecraft Bedrock resource pack manager for client-side visual customization",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/client/main.js",
+    "dev": "tsx src/client/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
