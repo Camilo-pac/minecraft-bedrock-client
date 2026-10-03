@@ -1,127 +1,91 @@
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
+import * as readline from "node:readline";
+import { BedrockResourcePackManager, type ResourcePackManifest } from "../resourcePack.js";
 
-export interface ResourcePackManifest {
-  name: string;
-  description: string;
-  version: string;
-  folder: string;
-  enabled: boolean;
-  clientOnly: true;
-}
+export class BedrockPackManagerUI {
+  private readonly manager: BedrockResourcePackManager;
+  private readonly rl: readline.Interface;
 
-export interface ClientSettings {
-  activePacks: string[];
-  packRoot: string;
-  lastUpdated: string;
-}
-
-const DEFAULT_SETTINGS: ClientSettings = {
-  activePacks: ["example-pack"],
-  packRoot: "./resourcepacks",
-  lastUpdated: new Date().toISOString(),
-};
-
-export class LocalResourcePackManager {
-  private readonly settingsPath: string;
-  private readonly packRoot: string;
-
-  constructor(settingsPath: string, packRoot: string) {
-    this.settingsPath = settingsPath;
-    this.packRoot = packRoot;
+  constructor(manager: BedrockResourcePackManager) {
+    this.manager = manager;
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
   }
 
-  async listAvailablePacks(): Promise<ResourcePackManifest[]> {
-    const activeSettings = await this.loadSettings();
-    const entries = await fs.readdir(this.packRoot, { withFileTypes: true });
+  private prompt(question: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.rl.question(question, resolve);
+    });
+  }
 
-    const packDirs = entries.filter((entry) => entry.isDirectory());
+  async displayPacks(packs: ResourcePackManifest[]): Promise<void> {
+    console.log("\n=== Available Bedrock Resource Packs ===");
 
-    const manifests = await Promise.all(
-      packDirs.map(async (entry) => {
-        const folder = entry.name;
-        const packPath = path.join(this.packRoot, folder);
-        const metadataPath = path.join(packPath, "pack.mcmeta");
+    if (packs.length === 0) {
+      console.log("No resource packs found.");
+      console.log(`Add packs to: ${this.manager.getResourcePacksDirectory()}`);
+      return;
+    }
 
-        let description = "Custom local-only resource pack";
-        let version = "1.0.0";
+    packs.forEach((pack, index) => {
+      const status = pack.enabled ? "[ENABLED]" : "[DISABLED]";
+      console.log(`${index + 1}. ${pack.name} ${status}`);
+      console.log(`   Description: ${pack.description}`);
+      console.log(`   Version: ${pack.version}`);
+      console.log(`   Folder: ${pack.folder}`);
+      console.log("");
+    });
+  }
 
-        try {
-          const mcmeta = await fs.readFile(metadataPath, "utf8");
-          const json = JSON.parse(mcmeta) as { pack?: { description?: string; version?: string[] } };
-          const packInfo = json.pack ?? {};
+  async showMenu(packs: ResourcePackManifest[]): Promise<void> {
+    let running = true;
 
-          if (typeof packInfo.description === "string") {
-            description = packInfo.description;
-          }
+    while (running) {
+      await this.displayPacks(packs);
 
-          if (Array.isArray(packInfo.version) && packInfo.version.length >= 2) {
-            version = packInfo.version.join(".");
-          }
-        } catch {
-          // Missing metadata is acceptable for user-defined test packs.
+      console.log("Commands:");
+      console.log('  "enable <number>" - Enable a pack');
+      console.log('  "disable <number>" - Disable a pack');
+      console.log('  "list" - List all packs');
+      console.log('  "quit" - Exit');
+      console.log("");
+
+      const input = await this.prompt("Enter command: ");
+      const [command, arg] = input.trim().toLowerCase().split(" ");
+
+      if (command === "quit") {
+        running = false;
+        console.log("Goodbye!");
+      } else if (command === "enable") {
+        const idx = parseInt(arg, 10) - 1;
+        if (idx >= 0 && idx < packs.length) {
+          await this.manager.enablePack(packs[idx].folder);
+          packs = await this.manager.listAvailablePacks();
+          console.log(`✓ Enabled: ${packs[idx].name}`);
+        } else {
+          console.log("Invalid pack number.");
         }
+      } else if (command === "disable") {
+        const idx = parseInt(arg, 10) - 1;
+        if (idx >= 0 && idx < packs.length) {
+          await this.manager.disablePack(packs[idx].folder);
+          packs = await this.manager.listAvailablePacks();
+          console.log(`✓ Disabled: ${packs[idx].name}`);
+        } else {
+          console.log("Invalid pack number.");
+        }
+      } else if (command === "list") {
+        packs = await this.manager.listAvailablePacks();
+      } else {
+        console.log("Unknown command. Try again.");
+      }
 
-        return {
-          name: folder
-            .split("-")
-            .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-            .join(" "),
-          description,
-          version,
-          folder,
-          enabled: activeSettings.activePacks.includes(folder),
-          clientOnly: true,
-        };
-      }),
-    );
-
-    return manifests.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  async loadSettings(): Promise<ClientSettings> {
-    try {
-      const raw = await fs.readFile(this.settingsPath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<ClientSettings>;
-
-      return {
-        activePacks: Array.isArray(parsed.activePacks) ? parsed.activePacks : DEFAULT_SETTINGS.activePacks,
-        packRoot: typeof parsed.packRoot === "string" ? parsed.packRoot : this.packRoot,
-        lastUpdated: typeof parsed.lastUpdated === "string" ? parsed.lastUpdated : new Date().toISOString(),
-      };
-    } catch {
-      await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
-      await fs.writeFile(this.settingsPath, JSON.stringify(DEFAULT_SETTINGS, null, 2));
-      return { ...DEFAULT_SETTINGS, packRoot: this.packRoot };
+      console.log("");
     }
   }
 
-  async saveSettings(settings: ClientSettings): Promise<void> {
-    await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
-    await fs.writeFile(this.settingsPath, JSON.stringify(settings, null, 2));
-  }
-
-  async enablePack(packName: string): Promise<void> {
-    const settings = await this.loadSettings();
-    if (!settings.activePacks.includes(packName)) {
-      settings.activePacks.push(packName);
-    }
-
-    settings.lastUpdated = new Date().toISOString();
-    await this.saveSettings(settings);
-    console.log(`[local-client] Enabled pack: ${packName}`);
-  }
-
-  async disablePack(packName: string): Promise<void> {
-    const settings = await this.loadSettings();
-    settings.activePacks = settings.activePacks.filter((name) => name !== packName);
-    settings.lastUpdated = new Date().toISOString();
-    await this.saveSettings(settings);
-    console.log(`[local-client] Disabled pack: ${packName}`);
-  }
-
-  async getActivePacks(): Promise<string[]> {
-    const settings = await this.loadSettings();
-    return settings.activePacks;
+  close(): void {
+    this.rl.close();
   }
 }
